@@ -147,6 +147,12 @@ function initMap() {
   const recluster = throttle(renderMarkers, 140);
   map.on('zoom', recluster);
   map.on('moveend', renderMarkers);
+  // The globe <-> flat transition finishes a frame or two after a jump, so pins
+  // placed during the jump can be stale. Re-place them once the map settles.
+  const settle = () => { renderMarkers(); nudgeMarkers(); };
+  map.on('idle', settle);
+  map.on('projectiontransition', () => requestAnimationFrame(settle));
+  map.on('moveend', () => requestAnimationFrame(() => requestAnimationFrame(settle)));
   map.on('mousemove', throttle((e) => {
     if (state.placing) return;
     map.getCanvas().style.cursor = e.point && poiAt(e.point) ? 'pointer' : '';
@@ -189,11 +195,11 @@ function addOverlayLayers() {
     }
     map.addLayer({
       id: 'countries-visited', type: 'fill', source: 'countries', filter: ['in', ['get', 'iso'], ['literal', []]],
-      paint: { 'fill-color': '#FF8FA3', 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.34, 4, 0.26, 7, 0.08, 9, 0] }
+      paint: { 'fill-color': '#FF8FA3', 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.34, 3, 0.26, 5, 0.1, 6.2, 0] }
     }, before);
     map.addLayer({
       id: 'countries-visited-line', type: 'line', source: 'countries', filter: ['in', ['get', 'iso'], ['literal', []]],
-      paint: { 'line-color': '#FF6B8A', 'line-width': 1.4, 'line-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.9, 6, 0.5, 9, 0] }
+      paint: { 'line-color': '#FF6B8A', 'line-width': 1.4, 'line-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.9, 3.5, 0.6, 5.5, 0] }
     }, before);
   }
   if (!map.getSource('journey')) {
@@ -472,6 +478,11 @@ function renderMarkers() {
   }
 }
 
+function nudgeMarkers() {
+  for (const rec of pinMarkers.values()) if (rec.onMap) rec.marker.setLngLat(rec.marker.getLngLat());
+  if (draft) draft.marker.setLngLat(draft.marker.getLngLat());
+}
+
 function celebrate(id) {
   const rec = pinMarkers.get(id);
   if (!rec || !settings.motion) return;
@@ -488,6 +499,11 @@ function celebrate(id) {
 /* ====================================================================== */
 
 const drawer = () => $('#drawer');
+// Keep the map's "safe area" in step with the panels, unless a flight is already under way.
+const syncPadding = debounce(() => {
+  if (!map || map.isMoving()) return;
+  try { map.easeTo({ padding: viewPadding(), duration: settings.motion ? 320 : 0 }); } catch {}
+}, 60);
 function openDrawer(html, kind) {
   const d = drawer();
   d.innerHTML = html;
@@ -496,6 +512,7 @@ function openDrawer(html, kind) {
   document.body.classList.add('drawer-open');
   applyI18n(d);
   requestAnimationFrame(() => d.classList.add('is-open'));
+  syncPadding();
 }
 function closeDrawer() {
   const d = drawer();
@@ -504,6 +521,7 @@ function closeDrawer() {
   d.innerHTML = '';
   delete d.dataset.kind;
   document.body.classList.remove('drawer-open');
+  syncPadding();
 }
 
 /* ---------- detail ---------- */
