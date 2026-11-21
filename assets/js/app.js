@@ -161,8 +161,33 @@ function initMap() {
 
   map.once('load', () => {
     if (!hasHash && state.memories.length) fitToMemories(state.memories, { animate: false, maxZoom: 4.5 });
+    if (!hasHash && !state.memories.length) startIdleSpin();
     loadCountries();
   });
+}
+
+// An empty globe turns slowly until the visitor touches anything.
+function startIdleSpin() {
+  if (!settings.motion || !settings.globe || usingBlank || navigator.webdriver) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const events = ['pointerdown', 'wheel', 'keydown', 'touchstart'];
+  let spinning = true;
+  const stop = () => {
+    if (!spinning) return;
+    spinning = false;
+    events.forEach((ev) => window.removeEventListener(ev, stop, true));
+    try { map.stop(); } catch {}
+  };
+  events.forEach((ev) => window.addEventListener(ev, stop, { capture: true, passive: true }));
+  setTimeout(stop, 90000);
+  const step = () => {
+    if (!spinning) return;
+    if (state.memories.length || map.getZoom() > 3.2) { stop(); return; }
+    const c = map.getCenter();
+    map.easeTo({ center: [c.lng + 10, c.lat], duration: 2200, easing: (x) => x });
+  };
+  map.on('moveend', () => { if (spinning) requestAnimationFrame(step); });
+  step();
 }
 
 // Show cafés, restaurants and shops one zoom level earlier than the stock style.
