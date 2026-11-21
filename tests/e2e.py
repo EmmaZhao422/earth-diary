@@ -20,7 +20,11 @@ errors = []
 
 
 def shot(pg, name):
-    pg.screenshot(path=f'{SHOTS}/{name}.png')
+    # Screenshots are for humans; a slow CI machine must not fail the run over one.
+    try:
+        pg.screenshot(path=f'{SHOTS}/{name}.png', animations='disabled', timeout=20000)
+    except Exception as err:
+        print(f'(screenshot {name} skipped: {str(err).splitlines()[0]})')
 
 
 def count(pg):

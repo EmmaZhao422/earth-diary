@@ -24,7 +24,7 @@ jobs:
         env:
           ED_BROWSER: ${{ matrix.browser }}
         run: |
-          python -m http.server 8765 &
+          python -m http.server 8765 > /dev/null 2>&1 &
           sleep 2
           python tests/e2e.py tests/media /tmp/shots
       - uses: actions/upload-artifact@v4
