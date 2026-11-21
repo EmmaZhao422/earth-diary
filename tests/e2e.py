@@ -56,9 +56,12 @@ with sync_playwright() as p:
         const { prepareFile } = await import('./assets/js/media.js');
         const c = document.createElement('canvas'); c.width = 4000; c.height = 3000;
         const g = c.getContext('2d');
-        for (let i = 0; i < 6000; i++) {          // busy picture, so the PNG is large in every browser
-            g.fillStyle = `hsl(${(i * 47) % 360} 70% ${30 + (i * 13) % 50}%)`;
-            g.fillRect((i * 733) % 4000, (i * 397) % 3000, 90 + (i % 7) * 30, 60 + (i % 5) * 25);
+        g.fillStyle = '#89a'; g.fillRect(0, 0, 4000, 3000);
+        for (let i = 0; i < 40; i++) {            // soft gradients: like a photo, large as PNG and small as JPEG
+            const x = (i * 733) % 4000, y = (i * 397) % 3000;
+            const gr = g.createRadialGradient(x, y, 0, x, y, 500 + (i % 5) * 220);
+            gr.addColorStop(0, `hsla(${(i * 47) % 360}, 80%, 60%, .9)`); gr.addColorStop(1, 'hsla(0, 0%, 100%, 0)');
+            g.fillStyle = gr; g.fillRect(0, 0, 4000, 3000);
         }
         const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
         const big = await prepareFile(new File([blob], 'big.png', { type: 'image/png' }), { shrink: true });
