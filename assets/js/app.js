@@ -683,7 +683,7 @@ function setPlacing(on) {
 
 let lastDraftAt = 0;
 async function startDraft(lngLat, poi) {
-  if (Date.now() - lastDraftAt < 900) return;           // long-press can fire both touch and contextmenu
+  if (draft && Date.now() - lastDraftAt < 900) return;  // a long-press can fire both touch and contextmenu
   lastDraftAt = Date.now();
   if (replay) stopReplay();
   if (draft) { if (!(await confirmDiscard())) return; discardDraft(); }
