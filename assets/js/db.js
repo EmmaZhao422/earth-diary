@@ -71,6 +71,22 @@ async function all(store) {
   return tx(store, 'readonly', (t) => t.objectStore(store).getAll());
 }
 
+// Some browsers (Safari in private windows, some embedded WebKit builds) refuse
+// to store Blob objects in IndexedDB. For those, keep the raw bytes instead.
+async function putBlobRecord(store, rec) {
+  try { return await put(store, rec); }
+  catch (err) {
+    if (!rec.blob || (err && err.name === 'QuotaExceededError')) throw err;
+    const { blob, ...rest } = rec;
+    return put(store, { ...rest, buf: await blob.arrayBuffer(), type: blob.type || rest.mime || '' });
+  }
+}
+async function getBlobRecord(store, id) {
+  const rec = await get(store, id);
+  if (rec && !rec.blob && rec.buf) rec.blob = new Blob([rec.buf], { type: rec.type || '' });
+  return rec;
+}
+
 export const db = {
   async init() { await open(); return !memoryMode; },
   get isMemoryOnly() { return memoryMode; },
@@ -84,11 +100,11 @@ export const db = {
     await del('memories', m.id);
   },
 
-  putMedia: (rec) => put('media', rec),          // { id, memoryId, blob, name, mime }
-  getMedia: (id) => get('media', id),
+  putMedia: (rec) => putBlobRecord('media', rec),   // { id, memoryId, blob, name, mime }
+  getMedia: (id) => getBlobRecord('media', id),
   deleteMedia: async (id) => { await del('media', id); await del('thumbs', id); },
-  putThumb: (rec) => put('thumbs', rec),         // { id, blob }
-  getThumb: (id) => get('thumbs', id),
+  putThumb: (rec) => putBlobRecord('thumbs', rec),  // { id, blob }
+  getThumb: (id) => getBlobRecord('thumbs', id),
 
   async getKV(k, fallback) { const r = await get('kv', k); return r ? r.v : fallback; },
   setKV: (k, v) => put('kv', { k, v }),

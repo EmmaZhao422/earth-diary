@@ -45,6 +45,16 @@ with sync_playwright() as p:
     pg.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
     pg.on('console', lambda m: errors.append(f'console.error: {m.text[:200]}') if m.type == 'error' and 'Failed to load resource' not in m.text and 'photon' not in m.text else None)
 
+    def diagnose(exc_type, exc, tb):
+        # On any failure, say what the page itself reported before the traceback.
+        try:
+            print('page errors so far:', errors)
+            print('toasts on screen:', pg.evaluate("[...document.querySelectorAll('.toast')].map(t => t.textContent)"))
+        except Exception:
+            pass
+        sys.__excepthook__(exc_type, exc, tb)
+    sys.excepthook = diagnose
+
     pg.goto(BASE + '?style=blank')
     pg.wait_for_selector('.modal-welcome')
     has_gl = pg.evaluate("() => { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); }")
