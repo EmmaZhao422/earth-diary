@@ -23,7 +23,7 @@
 
 ```
 index.html              the app
-about / guide / privacy / terms .html   content pages
+about / guide / ideas / privacy / terms .html   content pages
 assets/js/config.js     ← the one file to edit for ads, affiliate links, tips, analytics
 assets/js/app.js        map, pins, editor, timeline, passport, settings
 assets/js/pins.js       the pin characters (inline SVG)

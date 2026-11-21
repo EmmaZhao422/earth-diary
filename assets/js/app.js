@@ -6,7 +6,7 @@ import { CHARACTERS, CHARACTER_IDS, PALETTE, pinSVG, pinName } from './pins.js';
 import * as geo from './geo.js';
 import { prepareFile, thumbURL, fullURL, primeThumb, forgetMedia, fmtDuration, fileKind, readExif } from './media.js';
 import { exportBackup, importBackup, downloadBlob } from './backup.js';
-import { initMonetization, mountSlot, mountSlots, feedEvery, adsAreLive, affiliateLinks, supportLink } from './ads.js';
+import { initMonetization, mountSlot, mountSlots, feedEvery, adsAreLive, affiliateLinks, supportLink, setBackupNudge } from './ads.js';
 import { createSamples } from './samples.js';
 import { $, $$, esc, debounce, throttle, todayISO, toast, openModal, topModal, confirmDialog } from './kit.js';
 import { makeShareCard } from './sharecard.js';
@@ -334,6 +334,10 @@ function showSpotPopup(lngLat, poi, presetPlace) {
     .setLngLat([at.lng, at.lat]).setDOMContent(el).addTo(map);
   const mine = popup;
   popup.on('close', () => { if (popup === mine) popup = null; });
+  try {
+    const y = map.project([at.lng, at.lat]).y;
+    if (y < 215) map.panBy([0, y - 215], { duration: settings.motion ? 350 : 0 });
+  } catch {}
 
   if (!presetPlace) {
     popupAbort = new AbortController();
@@ -1039,7 +1043,17 @@ function setTab(tab) {
   if (tab === 'passport') renderPassport();
 }
 
+// Nudge towards a backup once there is something worth losing and no export in the last 30 days.
+function backupIsDue() {
+  const own = state.memories.filter((m) => !m.sample).length;
+  if (own < 3) return false;
+  let last = 0;
+  try { last = +localStorage.getItem('ed-last-export') || 0; } catch {}
+  return Date.now() - last > 30 * 864e5;
+}
+
 function renderAll() {
+  setBackupNudge(backupIsDue());
   renderTimeline();
   if (state.tab === 'passport') renderPassport();
   renderMarkers();
@@ -1261,7 +1275,7 @@ async function openSettings() {
         <input type="file" id="import-file" accept=".zip,.json,application/zip,application/json" hidden>
       </section>
       <footer class="set-foot">
-        <a href="about.html">${esc(t('settings.about'))}</a><a href="guide.html">${esc(t('settings.guide'))}</a>
+        <a href="about.html">${esc(t('settings.about'))}</a><a href="guide.html">${esc(t('settings.guide'))}</a><a href="ideas.html">${esc(t('settings.ideas'))}</a>
         <a href="privacy.html">${esc(t('settings.privacy'))}</a><a href="terms.html">${esc(t('settings.terms'))}</a>
         <a href="${esc(CFG.repoUrl || '#')}" target="_blank" rel="noopener">GitHub</a>
         ${support ? `<a href="${esc(support.url)}" target="_blank" rel="noopener">🧋 ${esc(support.label)}</a>` : ''}
@@ -1322,6 +1336,9 @@ async function doExport() {
   try {
     const blob = await exportBackup(state.memories);
     downloadBlob(blob, `earth-diary-${todayISO()}.zip`);
+    try { localStorage.setItem('ed-last-export', String(Date.now())); } catch {}
+    setBackupNudge(false);
+    renderTimeline();
     toast(t('toast.exported'), { kind: 'ok' });
   } catch (err) { console.error(err); toast(t('toast.storage'), { kind: 'warn' }); }
 }

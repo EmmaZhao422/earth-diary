@@ -6,6 +6,7 @@ body.page { overflow: auto; background: var(--cream); font-size: 17px; line-heig
 .page-nav { display: flex; gap: 16px; margin-left: auto; align-items: center; flex-wrap: wrap; font-weight: 800; font-size: 15px; }
 .page-nav a { color: var(--ink); text-decoration: none; }
 .page-nav a:hover, .page-nav a[aria-current] { color: var(--coral-deep); }
+.page-nav a.btn, .page-nav a.btn:hover { color: #fff; }
 .page-main { max-width: 780px; margin: 0 auto; padding: 36px 20px 80px; }
 .page-main h1 { font-size: clamp(32px, 6vw, 48px); margin-bottom: 10px; }
 .page-main h2 { font-size: 26px; margin: 40px 0 10px; }

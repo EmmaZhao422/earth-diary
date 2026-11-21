@@ -13,6 +13,8 @@ const CONSENT_KEY = 'ed-consent';
 
 let scriptsStarted = false;
 let houseTurn = Math.floor(Math.random() * 3);
+let backupNudge = false;
+export const setBackupNudge = (on) => { backupNudge = !!on; };
 
 const readConsent = () => { try { return localStorage.getItem(CONSENT_KEY); } catch { return null; } };
 const needsConsent = () => provider !== 'none' || !!CFG.analytics?.ga4;
@@ -101,7 +103,7 @@ function houseCard(name) {
     { icon: '⭐', title: t('house.star.title'), body: t('house.star.body'), cta: t('house.star.cta'), href: CFG.repoUrl }
   ];
   if (CFG.support?.url) cards.push({ icon: '🧋', title: t('house.star.title'), body: t('house.star.body'), cta: pick(CFG.support.label), href: CFG.support.url });
-  const c = cards[(houseTurn++) % cards.length];
+  const c = backupNudge && name === 'sidebar' ? cards[0] : cards[(houseTurn++) % cards.length];
   const cta = !c.cta ? '' : c.href
     ? `<a class="house-cta" href="${c.href}" target="_blank" rel="noopener">${c.cta}</a>`
     : `<button class="house-cta" data-house-action="${c.action}">${c.cta}</button>`;
