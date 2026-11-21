@@ -2,15 +2,16 @@
 
 Run from the repo root:
     python3 -m http.server 8765 &
-    python3 tests/e2e.py [media_dir] [screenshot_dir]
+    python3 tests/e2e.py [media_dir] [screenshot_dir]   (defaults: tests/media, /tmp/shots)
 
-`media_dir` must contain photo1.jpg, photo2.png and clip.webm.
+`media_dir` must contain photo1.jpg, photo2.png and clip.webm
+(and optionally photo_gps.jpg, a JPEG with EXIF GPS 48.858N 2.294E dated 2023-05-06).
 The test uses ?style=blank so it does not depend on the map tile host.
 """
 import sys, zipfile, os
 from playwright.sync_api import sync_playwright, expect
 
-MEDIA = sys.argv[1] if len(sys.argv) > 1 else '/tmp'
+MEDIA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'media')
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else '/tmp/shots'
 BASE = os.environ.get('ED_BASE', 'http://localhost:8765/index.html')
 os.makedirs(SHOTS, exist_ok=True)
@@ -144,12 +145,37 @@ with sync_playwright() as p:
     pg.wait_for_timeout(300)
     assert pg.locator('#editor').count() == 0
 
+    # --- start from a photo that carries GPS + date in its EXIF ---
+    if os.path.exists(f'{MEDIA}/photo_gps.jpg'):
+        pg.set_input_files('#photo-start', f'{MEDIA}/photo_gps.jpg')
+        pg.wait_for_selector('#editor')
+        pg.wait_for_function("document.querySelectorAll('#ed-media .media-tile:not(.is-loading)').length === 1", timeout=20000)
+        assert pg.input_value('#ed-date') == '2023-05-06', pg.input_value('#ed-date')
+        assert '48.858' in pg.inner_text('#ed-place-sub'), pg.inner_text('#ed-place-sub')
+        pg.fill('#ed-title', 'From a photo')
+        pg.click('#ed-save')
+        pg.wait_for_selector('.detail')
+        assert count(pg) == 9
+        pg.keyboard.press('Escape')
+
+    # --- hover card + journey replay ---
+    pg.locator('.pin').first.dispatch_event('mouseenter')
+    pg.wait_for_selector('.pin-card b', state='attached')
+    pg.click('.tab[data-tab="passport"]')
+    pg.click('[data-act="replay"]')
+    expect(pg.locator('#replay-bar')).to_be_visible()
+    pg.wait_for_timeout(3500)
+    shot(pg, '07b-replay')
+    pg.click('#replay-stop')
+    expect(pg.locator('#replay-bar')).to_be_hidden()
+    pg.click('.tab[data-tab="timeline"]')
+
     # --- delete ---
     pg.locator('.mem-card').first.click()
     pg.wait_for_selector('.detail')
     pg.click('[data-act="delete"]'); pg.click('.modal-confirm [data-a="yes"]')
     pg.wait_for_timeout(500)
-    assert count(pg) == 7
+    assert count(pg) == (8 if os.path.exists(f'{MEDIA}/photo_gps.jpg') else 7)
 
     # --- language ---
     pg.click('#btn-lang')

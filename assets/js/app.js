@@ -4,7 +4,7 @@ import { initLang, getLang, setLang, t, applyI18n, fmtDate, fmtBytes, fmtKm, pic
 import { db, newId } from './db.js';
 import { CHARACTERS, CHARACTER_IDS, PALETTE, pinSVG, pinName } from './pins.js';
 import * as geo from './geo.js';
-import { prepareFile, thumbURL, fullURL, primeThumb, forgetMedia, fmtDuration, fileKind } from './media.js';
+import { prepareFile, thumbURL, fullURL, primeThumb, forgetMedia, fmtDuration, fileKind, readExif } from './media.js';
 import { exportBackup, importBackup, downloadBlob } from './backup.js';
 import { initMonetization, mountSlot, mountSlots, feedEvery, adsAreLive, affiliateLinks, supportLink } from './ads.js';
 import { createSamples } from './samples.js';
@@ -19,7 +19,6 @@ const BLANK_STYLE = {
   version: 8, name: 'blank', sources: {},
   layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#BFE3F7' } }]
 };
-const ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 
 /* ====================================================================== */
 /* state                                                                   */
@@ -49,6 +48,8 @@ let styleReady = false;
 let usingBlank = params.get('style') === 'blank';
 const pinMarkers = new Map();         // id -> { marker, el, onMap }
 let clusterMarkers = [];
+let pendingFiles = null;               // photos waiting for the user to pick a spot
+let replay = null;
 
 const titleOf = (m) => m.title || m.place?.name || t('detail.untitled');
 const sortMemories = (list) => list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
@@ -101,7 +102,7 @@ function initMap() {
     hash: 'map', attributionControl: false, maxPitch: 60, fadeDuration: 150
   });
   window.__edMap = map;
-  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: usingBlank ? undefined : ATTRIBUTION }), 'bottom-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   const locate = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false, showAccuracyCircle: false });
   map.addControl(locate, 'bottom-right');
@@ -112,10 +113,7 @@ function initMap() {
     styleReady = true;
     try { map.setProjection({ type: settings.globe ? 'globe' : 'mercator' }); } catch {}
     try {
-      map.setSky({
-        'sky-color': '#bfe3f7', 'horizon-color': '#fff6e9', 'fog-color': '#ffffff',
-        'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0]
-      });
+      map.setSky({ 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] });
     } catch {}
     boostPOIs();
     addOverlayLayers();
@@ -375,11 +373,28 @@ function ensurePin(m) {
   const el = buildPinEl(m);
   el.addEventListener('click', (e) => { e.stopPropagation(); selectMemory(m.id); });
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMemory(m.id); } });
+  el.addEventListener('mouseenter', () => fillPinCard(m.id, el));
   const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 3], opacityWhenCovered: '0' }).setLngLat([m.lng, m.lat]);
   rec = { marker, el, onMap: false };
   pinMarkers.set(m.id, rec);
   return rec;
 }
+// Small preview card shown when the mouse rests on a pin (filled lazily).
+function fillPinCard(id, el) {
+  const m = state.byId.get(id);
+  if (!m) return;
+  let card = $('.pin-card', el);
+  if (!card) { card = document.createElement('span'); card.className = 'pin-card'; el.appendChild(card); }
+  const version = `${m.updatedAt}|${getLang()}`;
+  if (card.dataset.v === version) return;
+  card.dataset.v = version;
+  const cover = (m.media || [])[0];
+  card.innerHTML = `${cover ? '<i class="pin-card-img"></i>' : ''}<b></b><small></small>`;
+  $('b', card).textContent = titleOf(m);
+  $('small', card).textContent = [fmtDate(m.date), m.place?.city || m.place?.name].filter(Boolean).join(' · ');
+  if (cover) thumbURL(cover.id).then((url) => { const img = $('.pin-card-img', card); if (url && img) img.style.backgroundImage = `url("${url}")`; });
+}
+
 function dropPin(id) {
   const rec = pinMarkers.get(id);
   if (rec) { rec.marker.remove(); pinMarkers.delete(id); }
@@ -488,6 +503,7 @@ function selectMemory(id, { fly = true, sparkle = false } = {}) {
   const m = state.byId.get(id);
   if (!m) return;
   if (draft) return;
+  if (replay) stopReplay();
   closePopup();
   state.selectedId = id;
   if (!isDesktop()) setSheet(false);
@@ -575,19 +591,44 @@ function setPlacing(on) {
 }
 
 async function startDraft(lngLat, poi) {
+  if (replay) stopReplay();
   if (draft) { if (!(await confirmDiscard())) return; discardDraft(); }
+  const files = pendingFiles;
+  pendingFiles = null;
   setPlacing(false);
   closePopup();
   const at = poi && poi.lng != null ? { lng: poi.lng, lat: poi.lat } : { lng: lngLat.lng, lat: lngLat.lat };
   const now = Date.now();
-  const hasGeo = poi && (poi.countryCode || poi.city);
   const memory = {
     id: newId(), lat: at.lat, lng: at.lng, title: '', date: todayISO(), text: '', mood: '', tags: [],
     pin: { ...settings.lastPin },
     place: poi ? { name: poi.name || '', category: poi.category || '', city: poi.city || '', state: poi.state || '', country: poi.country || '', countryCode: poi.countryCode || '' } : null,
     media: [], createdAt: now, updatedAt: now
   };
-  openEditor(memory, true, { nameLocked: !!(poi && poi.name), skipLookup: false, hasGeo });
+  openEditor(memory, true, { nameLocked: !!(poi && poi.name) });
+  if (files) addFiles(files);
+}
+
+// Photos dropped on the map or picked with "Start from a photo": if one of them
+// knows where it was taken, the pin goes there; otherwise the user taps the map.
+async function startFromFiles(fileList) {
+  const files = [...fileList].filter((f) => fileKind(f));
+  if (!files.length) return;
+  if (draft) { addFiles(files); return; }
+  let spot = null;
+  for (const f of files.slice(0, 8)) {
+    const ex = await readExif(f);
+    if (ex.lat != null) { spot = ex; break; }
+  }
+  if (spot) {
+    pendingFiles = files;
+    await startDraft({ lng: spot.lng, lat: spot.lat }, null);
+    if (draft) toast(t('toast.exif.placed'), { kind: 'ok' });
+  } else {
+    pendingFiles = files;
+    setPlacing(true);
+    toast(t('toast.exif.noloc'), { ms: 5200 });
+  }
 }
 
 function editMemory(id) {
@@ -598,7 +639,7 @@ function editMemory(id) {
 
 function openEditor(memory, isNew, { nameLocked = false } = {}) {
   state.selectedId = null;
-  draft = { memory, isNew, newFiles: [], removed: new Set(), marker: null, abort: null, dirty: false, nameLocked, busy: 0 };
+  draft = { memory, isNew, newFiles: [], removed: new Set(), marker: null, abort: null, dirty: false, nameLocked, busy: 0, initialDate: memory.date, dateTouched: !isNew };
 
   const el = buildPinEl(memory, 'is-draft');
   draft.marker = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 3], draggable: true })
@@ -752,6 +793,14 @@ async function addFiles(fileList) {
         primeThumb(prepared.meta.id, prepared.thumb);
         d.newFiles.push(prepared);
         d.dirty = true;
+        const taken = prepared.exif?.date;
+        const dateInput = $('#ed-date');
+        if (taken && !d.dateTouched && dateInput && dateInput.value === d.initialDate && taken !== d.initialDate) {
+          d.dateTouched = true;
+          d.memory.date = taken;
+          dateInput.value = taken;
+          toast(t('toast.exif.date', { date: fmtDate(taken) }));
+        }
       }
     } catch { toast(t('editor.badfile', { name: file.name }), { kind: 'warn' }); }
     d.busy--; renderEditorMedia();
@@ -977,6 +1026,7 @@ function renderPassport() {
     <label class="switch-row"><span><b>${esc(t('settings.journey'))}</b><small>${esc(t('settings.journey.sub'))}</small></span>
       <input type="checkbox" data-setting="journey" ${settings.journey ? 'checked' : ''}><i></i></label>
     <button class="btn btn-primary btn-block" data-act="card">🪪 ${esc(t('passport.card'))}</button>
+    ${s.total > 1 ? `<button class="btn btn-soft btn-block" data-act="replay">▶️ ${esc(t('replay.start'))}</button>` : ''}
     <h4 class="year-head">${esc(t('passport.countrylist'))}</h4>
     <div class="country-list">${countryRows}${s.unknown ? `<div class="country-row is-muted"><span class="flag">🌍</span><span>${esc(t('passport.unknown'))}</span><em>${s.unknown}</em></div>` : ''}</div>`;
 }
@@ -1041,7 +1091,7 @@ const runSearch = debounce(async (q) => {
     if (ctl.signal.aborted) return;
     paintSearch([...mine, ...places.map((p) => ({
       place: p, emoji: geo.categoryEmoji(p.category || p.kind), title: p.name,
-      sub: [geo.prettyCategory(p.category), geo.placeLine(p)].filter(Boolean).join(' · ')
+      sub: [geo.prettyCategory(p.category), p.street && p.street !== p.name ? p.street : '', geo.placeLine(p)].filter(Boolean).join(' · ')
     }))]);
   } catch (err) {
     if (err?.name === 'AbortError') return;
@@ -1098,6 +1148,70 @@ function stepLightbox(d) {
   if (lb.items.length < 2) return;
   lb.i = (lb.i + d + lb.items.length) % lb.items.length;
   paintLightbox();
+}
+
+/* ====================================================================== */
+/* journey replay                                                          */
+/* ====================================================================== */
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function arriveAt(m) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; map.off('moveend', finish); resolve(); };
+    const target = { center: [m.lng, m.lat], zoom: 6.4, padding: viewPadding() };
+    if (!settings.motion) { map.jumpTo(target); return resolve(); }
+    map.once('moveend', finish);
+    setTimeout(finish, 9000);
+    map.flyTo({ ...target, speed: 1.05, curve: 1.5, essential: true });
+  });
+}
+
+async function startReplay() {
+  const list = [...state.memories].reverse();
+  if (list.length < 2 || draft || replay) return;
+  closePopup(); setPlacing(false);
+  if (state.selectedId) deselect();
+  if (!isDesktop()) setSheet(false);
+  const token = (replay = { journeyWas: settings.journey });
+  settings.journey = true;
+  refreshOverlays();
+  document.body.classList.add('is-replaying');
+  $('#replay-bar').hidden = false;
+  for (let i = 0; i < list.length && replay === token; i++) {
+    const m = list[i];
+    $('#replay-title').textContent = titleOf(m);
+    $('#replay-sub').textContent = [fmtDate(m.date), m.place?.city || m.place?.name, geo.countryName(m.place?.countryCode)].filter(Boolean).join(' · ');
+    $('#replay-count').textContent = `${i + 1} / ${list.length}`;
+    const thumb = $('#replay-thumb');
+    thumb.style.backgroundImage = '';
+    thumb.innerHTML = pinSVG(m.pin, { sticker: false });
+    const cover = (m.media || [])[0];
+    if (cover) thumbURL(cover.id).then((url) => { if (url && replay === token && $('#replay-title').textContent === titleOf(m)) { thumb.innerHTML = ''; thumb.style.backgroundImage = `url("${url}")`; } });
+    await arriveAt(m);
+    if (replay !== token) return;
+    state.selectedId = m.id;
+    renderMarkers();
+    highlightCard();
+    celebrate(m.id);
+    await sleep(settings.motion ? 2600 : 1800);
+  }
+  if (replay === token) stopReplay();
+}
+
+function stopReplay() {
+  if (!replay) return;
+  const r = replay;
+  replay = null;
+  settings.journey = r.journeyWas;
+  refreshOverlays();
+  try { map.stop(); } catch {}
+  $('#replay-bar').hidden = true;
+  document.body.classList.remove('is-replaying');
+  state.selectedId = null;
+  renderMarkers();
+  highlightCard();
 }
 
 /* ====================================================================== */
@@ -1310,8 +1424,25 @@ async function openShareCard() {
 /* ====================================================================== */
 
 function bindUI() {
-  $('#fab-add').addEventListener('click', () => { if (draft) return; setPlacing(!state.placing); });
-  $('#placing-cancel').addEventListener('click', () => setPlacing(false));
+  $('#fab-add').addEventListener('click', () => { if (draft) return; if (replay) stopReplay(); if (state.placing) pendingFiles = null; setPlacing(!state.placing); });
+  $('#placing-cancel').addEventListener('click', () => { pendingFiles = null; setPlacing(false); });
+  $('#placing-photo').addEventListener('click', () => $('#photo-start').click());
+  $('#photo-start').addEventListener('change', (e) => { const files = [...e.target.files]; e.target.value = ''; startFromFiles(files); });
+  $('#replay-stop').addEventListener('click', stopReplay);
+
+  // drag photos from the desktop straight onto the map
+  const dropZone = $('#map-drop');
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => { if (!hasFiles(e) || draft) return; dragDepth++; dropZone.hidden = false; });
+  document.addEventListener('dragleave', (e) => { if (!hasFiles(e) || draft) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) dropZone.hidden = true; });
+  document.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  document.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0; dropZone.hidden = true;
+    if (!draft) startFromFiles(e.dataTransfer.files);
+  });
   $('#placing-here').addEventListener('click', () => {
     if (!navigator.geolocation) { toast(t('toast.geo.denied'), { kind: 'warn' }); return; }
     navigator.geolocation.getCurrentPosition(
@@ -1363,6 +1494,7 @@ function bindUI() {
     if (act === 'start-placing') setPlacing(true);
     if (act === 'samples') addSamples();
     if (act === 'card') openShareCard();
+    if (act === 'replay') startReplay();
     const row = e.target.closest('[data-cc]');
     if (row) fitToMemories(state.memories.filter((m) => m.place?.countryCode === row.dataset.cc), { maxZoom: 9 });
     const house = e.target.closest('[data-house-action]');
@@ -1437,6 +1569,7 @@ function bindUI() {
   d.addEventListener('input', (e) => {
     if (!draft) return;
     if (e.target.id === 'ed-place') draft.nameLocked = !!e.target.value.trim();
+    if (e.target.id === 'ed-date') draft.dateTouched = true;
     if (e.target.id === 'ed-title') { const tip = $('.pin-tip', draft.marker.getElement()); if (tip) tip.textContent = e.target.value || t('editor.new'); }
   });
   for (const ev of ['dragenter', 'dragover']) d.addEventListener(ev, (e) => { if (draft) { e.preventDefault(); d.classList.add('is-drop'); } });
@@ -1470,7 +1603,8 @@ function bindUI() {
     if (lbOpen) return closeLightbox();
     const modal = topModal();
     if (modal) return modal.close();
-    if (state.placing) return setPlacing(false);
+    if (replay) return stopReplay();
+    if (state.placing) { pendingFiles = null; return setPlacing(false); }
     if (popup) return closePopup();
     if (draft) return cancelDraft();
     if (state.selectedId) return deselect();

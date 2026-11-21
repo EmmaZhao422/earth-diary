@@ -13,6 +13,12 @@
   <meta property="og:url" content="https://emmazhao422.github.io/earth-diary/">
   <meta property="og:image" content="https://emmazhao422.github.io/earth-diary/assets/img/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"Earth Diary","url":"https://emmazhao422.github.io/earth-diary/",
+   "applicationCategory":"TravelApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript and WebGL",
+   "description":"A free, private world map for your life: drop animated pins anywhere on Earth and keep a diary, photos and videos inside each one.",
+   "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"inLanguage":["en","zh-Hans"]}
+  </script>
   <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -73,8 +79,18 @@
   <div id="placing-bar" class="placing-bar" hidden>
     <span class="placing-dot" aria-hidden="true">📍</span>
     <span data-i18n="placing.hint">Tap the map where it happened</span>
+    <button id="placing-photo" class="btn btn-soft btn-sm" data-i18n="placing.photo">Start from a photo</button>
     <button id="placing-here" class="btn btn-soft btn-sm" data-i18n="placing.here">Use my location</button>
     <button id="placing-cancel" class="btn btn-ghost btn-sm" data-i18n="placing.cancel">Cancel</button>
+  </div>
+
+  <input id="photo-start" type="file" accept="image/*,video/*" multiple hidden>
+  <div id="map-drop" class="map-drop" hidden><span>📷</span><b data-i18n="drop.hint">Drop photos to start a memory</b></div>
+  <div id="replay-bar" class="replay-bar" hidden>
+    <span class="replay-thumb" id="replay-thumb"></span>
+    <span class="replay-text"><b id="replay-title"></b><small id="replay-sub"></small></span>
+    <em id="replay-count"></em>
+    <button id="replay-stop" class="btn btn-soft btn-sm" data-i18n="replay.stop">Stop</button>
   </div>
 
   <aside id="drawer" class="drawer" aria-live="polite" hidden></aside>

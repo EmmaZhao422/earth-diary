@@ -64,6 +64,72 @@ function videoThumb(blob) {
   });
 }
 
+/* ---------- EXIF (JPEG only): when and where a photo was taken ---------- */
+function parseTiff(v, start) {
+  const le = v.getUint16(start) === 0x4949;
+  const u16 = (o) => v.getUint16(o, le), u32 = (o) => v.getUint32(o, le);
+  const readIFD = (o) => {
+    const tags = {};
+    if (o + 2 > v.byteLength) return tags;
+    const n = u16(o);
+    for (let i = 0; i < n; i++) {
+      const e = o + 2 + i * 12;
+      if (e + 12 > v.byteLength) break;
+      tags[u16(e)] = { count: u32(e + 4), valOff: e + 8 };
+    }
+    return tags;
+  };
+  const ascii = (tag) => {
+    if (!tag) return '';
+    const o = tag.count > 4 ? start + u32(tag.valOff) : tag.valOff;
+    let s = '';
+    for (let i = 0; i < tag.count - 1 && o + i < v.byteLength; i++) s += String.fromCharCode(v.getUint8(o + i));
+    return s;
+  };
+  const rationals = (tag) => {
+    if (!tag) return null;
+    const o = start + u32(tag.valOff);
+    if (o + tag.count * 8 > v.byteLength) return null;
+    const out = [];
+    for (let i = 0; i < tag.count; i++) { const den = u32(o + i * 8 + 4); out.push(den ? u32(o + i * 8) / den : 0); }
+    return out;
+  };
+  const out = {};
+  const ifd0 = readIFD(start + u32(start + 4));
+  let stamp = '';
+  if (ifd0[0x8769]) { const exif = readIFD(start + u32(ifd0[0x8769].valOff)); stamp = ascii(exif[0x9003]) || ascii(exif[0x9004]); }
+  stamp = stamp || ascii(ifd0[0x0132]);
+  const m = stamp.match(/^(\d{4}):(\d{2}):(\d{2})/);
+  if (m && +m[1] > 1970) out.date = `${m[1]}-${m[2]}-${m[3]}`;
+  if (ifd0[0x8825]) {
+    const gps = readIFD(start + u32(ifd0[0x8825].valOff));
+    const la = rationals(gps[2]), lo = rationals(gps[4]);
+    if (la && lo && la.length === 3 && lo.length === 3) {
+      let lat = la[0] + la[1] / 60 + la[2] / 3600, lng = lo[0] + lo[1] / 60 + lo[2] / 3600;
+      if (ascii(gps[1]) === 'S') lat = -lat;
+      if (ascii(gps[3]) === 'W') lng = -lng;
+      if (isFinite(lat) && isFinite(lng) && (lat || lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { out.lat = lat; out.lng = lng; }
+    }
+  }
+  return out;
+}
+
+export async function readExif(file) {
+  try {
+    if (file.type !== 'image/jpeg' && !/\.jpe?g$/i.test(file.name || '')) return {};
+    const v = new DataView(await file.slice(0, 512 * 1024).arrayBuffer());
+    if (v.getUint16(0) !== 0xffd8) return {};
+    let off = 2;
+    while (off + 10 < v.byteLength) {
+      const marker = v.getUint16(off), size = v.getUint16(off + 2);
+      if (marker === 0xffe1 && v.getUint32(off + 4) === 0x45786966) return parseTiff(v, off + 10);
+      if ((marker & 0xff00) !== 0xff00 || marker === 0xffda) break;
+      off += 2 + size;
+    }
+  } catch {}
+  return {};
+}
+
 export function fileKind(file) {
   const type = (file.type || '').toLowerCase();
   if (type.startsWith('image/')) return 'image';
@@ -79,7 +145,9 @@ export async function prepareFile(file) {
   const kind = fileKind(file);
   if (!kind) return null;
   const info = kind === 'image' ? await imageThumb(file) : await videoThumb(file);
+  const exif = kind === 'image' ? await readExif(file) : {};
   return {
+    exif,
     meta: {
       id: newId(), kind, name: file.name || kind, size: file.size, mime: file.type || '',
       w: info.w || 0, h: info.h || 0, duration: info.duration || 0, hasThumb: !!info.blob
