@@ -231,7 +231,7 @@ with sync_playwright() as p:
     expect(pg.locator('#replay-bar')).to_be_visible()
     pg.wait_for_timeout(3500)
     shot(pg, '07b-replay')
-    pg.click('#replay-stop')
+    pg.evaluate("document.querySelector('#replay-stop').click()")   # works whether or not the replay already ended
     expect(pg.locator('#replay-bar')).to_be_hidden()
     pg.click('.tab[data-tab="timeline"]')
 
