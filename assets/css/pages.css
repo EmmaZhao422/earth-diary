@@ -1,0 +1,31 @@
+/* Earth Diary — content pages (about, guide, privacy, terms). Loaded after app.css. */
+body.page { overflow: auto; background: var(--cream); font-size: 17px; line-height: 1.7; }
+.page-top { position: sticky; top: 0; z-index: 10; background: rgba(255, 246, 233, .92); backdrop-filter: blur(8px); border-bottom: 2.5px solid var(--ink); }
+.page-top-inner { max-width: 980px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.page-top .brand { box-shadow: none; border: 0; background: none; padding: 0; height: auto; }
+.page-nav { display: flex; gap: 16px; margin-left: auto; align-items: center; flex-wrap: wrap; font-weight: 800; font-size: 15px; }
+.page-nav a { color: var(--ink); text-decoration: none; }
+.page-nav a:hover, .page-nav a[aria-current] { color: var(--coral-deep); }
+.page-main { max-width: 780px; margin: 0 auto; padding: 36px 20px 80px; }
+.page-main h1 { font-size: clamp(32px, 6vw, 48px); margin-bottom: 10px; }
+.page-main h2 { font-size: 26px; margin: 40px 0 10px; }
+.page-main h3 { font-size: 20px; margin: 26px 0 6px; }
+.page-main p, .page-main li { color: #55476a; }
+.page-main ul, .page-main ol { padding-left: 22px; }
+.page-main li { margin: 6px 0; }
+.lead { font-size: 20px; color: var(--ink) !important; }
+.updated { color: var(--ink-soft) !important; font-size: 14px; font-weight: 700; }
+.hero-row { display: flex; gap: 6px; margin: 4px 0 18px; }
+.hero-row svg { width: 54px; height: 78px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 18px 0; padding: 0 !important; list-style: none; }
+.cards li { background: #fff; border: 2.5px solid var(--ink); border-radius: 22px; padding: 16px; box-shadow: 0 4px 0 var(--ink); margin: 0; }
+.cards b { display: block; font-family: var(--font-head); font-weight: 600; font-size: 18px; color: var(--ink); }
+.cards span { font-size: 28px; }
+.callout { background: #fff; border: 2.5px dashed #d8c9b0; border-radius: 20px; padding: 14px 18px; margin: 18px 0; }
+.cta { margin: 28px 0; }
+details { background: #fff; border: 2.5px solid var(--ink); border-radius: 18px; padding: 12px 16px; margin: 10px 0; }
+summary { font-family: var(--font-head); font-weight: 600; font-size: 18px; cursor: pointer; color: var(--ink); }
+.page-foot { border-top: 2.5px solid var(--ink); padding: 22px 20px 40px; text-align: center; font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.page-foot a { color: var(--ink-soft); margin: 0 8px; }
+.page-main .ad-slot { margin: 30px 0; }
+kbd { background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 0 6px; font-size: 14px; font-family: var(--font-body); font-weight: 800; }

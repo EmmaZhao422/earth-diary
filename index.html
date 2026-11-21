@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Earth Diary — pin your memories, photos and videos on a world map</title>
+  <meta name="description" content="A free, private world map for your life. Tap any place on Earth — down to a single restaurant — drop a cute animated pin and keep a diary, photos and videos there.">
+  <meta name="theme-color" content="#FFF6E9">
+  <link rel="canonical" href="https://emmazhao422.github.io/earth-diary/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Earth Diary — pin your life on the planet">
+  <meta property="og:description" content="Drop cute animated pins anywhere on Earth and keep a diary, photos and videos inside each one. Free and private.">
+  <meta property="og:url" content="https://emmazhao422.github.io/earth-diary/">
+  <meta property="og:image" content="https://emmazhao422.github.io/earth-diary/assets/img/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="assets/fonts/fredoka-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <div id="map" aria-label="World map"></div>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Earth Diary">
+      <img src="assets/icons/favicon.svg" alt="" width="34" height="34">
+      <span class="brand-text"><b>Earth Diary</b><small data-i18n="app.tagline">Pin your life on the planet</small></span>
+    </a>
+    <div class="search" role="search">
+      <svg viewBox="0 0 24 24" class="search-icon" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+      <input id="search-input" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="search.placeholder" placeholder="Search a city, café, mountain…" aria-label="Search places">
+      <div id="search-results" class="search-results" hidden></div>
+    </div>
+    <div class="top-actions">
+      <button id="btn-lang" class="chip-btn" aria-label="Language">中文</button>
+      <button id="btn-settings" class="icon-btn" data-i18n-label="settings.title" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 000-3l2-1.5-2-3.4-2.3.9a7.6 7.6 0 00-2.6-1.5L14 2.5h-4l-.5 2.5a7.6 7.6 0 00-2.6 1.5l-2.3-.9-2 3.4 2 1.5a7.6 7.6 0 000 3l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 002.6 1.5l.5 2.5h4l.5-2.5a7.6 7.6 0 002.6-1.5l2.3.9 2-3.4z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <aside id="sidebar" class="sidebar" aria-label="Your memories">
+    <div class="sheet-grip" id="sheet-grip" aria-hidden="true"><span></span></div>
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" role="tab" data-tab="timeline"><span data-i18n="tab.timeline">Timeline</span> <em id="count-badge">0</em></button>
+      <button class="tab" role="tab" data-tab="passport" data-i18n="tab.passport">Passport</button>
+    </div>
+    <section id="tab-timeline" class="tab-panel">
+      <div class="filter-row">
+        <input id="filter-input" type="search" data-i18n-ph="filter.placeholder" placeholder="Filter by word or #tag" aria-label="Filter memories">
+      </div>
+      <div id="year-chips" class="chips"></div>
+      <div id="timeline" class="timeline"></div>
+    </section>
+    <section id="tab-passport" class="tab-panel" hidden></section>
+    <div id="sidebar-ad" class="sidebar-ad" hidden></div>
+    <footer class="sidebar-foot">
+      <a href="about.html" data-i18n="settings.about">About</a>
+      <a href="guide.html" data-i18n="settings.guide">Guide</a>
+      <a href="privacy.html" data-i18n="settings.privacy">Privacy</a>
+      <a href="terms.html" data-i18n="settings.terms">Terms</a>
+    </footer>
+  </aside>
+  <button id="btn-sidebar" class="sidebar-toggle" aria-label="Toggle memories panel">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+  </button>
+
+  <button id="fab-add" class="fab">
+    <span class="fab-plus" aria-hidden="true">+</span><span data-i18n="fab.add">Drop a pin</span>
+  </button>
+  <div id="placing-bar" class="placing-bar" hidden>
+    <span class="placing-dot" aria-hidden="true">📍</span>
+    <span data-i18n="placing.hint">Tap the map where it happened</span>
+    <button id="placing-here" class="btn btn-soft btn-sm" data-i18n="placing.here">Use my location</button>
+    <button id="placing-cancel" class="btn btn-ghost btn-sm" data-i18n="placing.cancel">Cancel</button>
+  </div>
+
+  <aside id="drawer" class="drawer" aria-live="polite" hidden></aside>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <button class="lb-close" data-lb="close" aria-label="Close">×</button>
+    <button class="lb-nav lb-prev" data-lb="prev" aria-label="Previous">‹</button>
+    <div class="lb-stage" id="lb-stage"></div>
+    <button class="lb-nav lb-next" data-lb="next" aria-label="Next">›</button>
+    <div class="lb-count" id="lb-count"></div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <noscript>
+    <div class="noscript">
+      <h1>Earth Diary</h1>
+      <p>Earth Diary is an interactive world map where you pin diary entries, photos and videos to real places. It needs JavaScript to run.</p>
+      <p><a href="about.html">About</a> · <a href="guide.html">Guide</a> · <a href="privacy.html">Privacy</a></p>
+    </div>
+  </noscript>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/vendor/maplibre-gl.js"></script>
+  <script src="assets/vendor/fflate.js" defer></script>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
