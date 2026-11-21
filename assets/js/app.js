@@ -172,8 +172,9 @@ function startIdleSpin() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const events = ['pointerdown', 'wheel', 'keydown', 'touchstart'];
   let spinning = true;
-  const stop = () => {
+  const stop = (e) => {
     if (!spinning) return;
+    if (e?.target?.closest?.('.modal-backdrop')) return;      // closing the welcome card does not count
     spinning = false;
     events.forEach((ev) => window.removeEventListener(ev, stop, true));
     try { map.stop(); } catch {}
