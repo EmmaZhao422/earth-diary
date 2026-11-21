@@ -55,7 +55,11 @@ with sync_playwright() as p:
     shrunk = pg.evaluate('''async () => {
         const { prepareFile } = await import('./assets/js/media.js');
         const c = document.createElement('canvas'); c.width = 4000; c.height = 3000;
-        const g = c.getContext('2d'); g.fillStyle = '#c96'; g.fillRect(0, 0, 4000, 3000);
+        const g = c.getContext('2d');
+        for (let i = 0; i < 6000; i++) {          // busy picture, so the PNG is large in every browser
+            g.fillStyle = `hsl(${(i * 47) % 360} 70% ${30 + (i * 13) % 50}%)`;
+            g.fillRect((i * 733) % 4000, (i * 397) % 3000, 90 + (i % 7) * 30, 60 + (i % 5) * 25);
+        }
         const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
         const big = await prepareFile(new File([blob], 'big.png', { type: 'image/png' }), { shrink: true });
         const keep = await prepareFile(new File([blob], 'big.png', { type: 'image/png' }), { shrink: false });
