@@ -130,6 +130,27 @@ export async function readExif(file) {
   return {};
 }
 
+// Large photos are re-saved at screen resolution so the browser's storage lasts
+// (a 12-megapixel phone photo becomes roughly a fifth of its size).
+const MAX_SIDE = 2560;
+async function shrinkImage(file) {
+  if (/gif|svg/i.test(file.type || '') || /\.(gif|svg)$/i.test(file.name || '')) return null;
+  let bmp = null;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return null; }
+  const side = Math.max(bmp.width, bmp.height);
+  if (side <= MAX_SIDE && file.size < 1.5 * 1024 * 1024) { bmp.close?.(); return null; }
+  const scale = Math.min(1, MAX_SIDE / side);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.();
+  const blob = await canvasToBlob(canvas, 0.86);
+  if (!blob || blob.size >= file.size) return null;
+  return { blob, w: canvas.width, h: canvas.height };
+}
+
 export function fileKind(file) {
   const type = (file.type || '').toLowerCase();
   if (type.startsWith('image/')) return 'image';
@@ -141,18 +162,21 @@ export function fileKind(file) {
 }
 
 // Turn a picked File into a media record + thumbnail (not yet saved).
-export async function prepareFile(file) {
+export async function prepareFile(file, { shrink = false } = {}) {
   const kind = fileKind(file);
   if (!kind) return null;
   const info = kind === 'image' ? await imageThumb(file) : await videoThumb(file);
   const exif = kind === 'image' ? await readExif(file) : {};
+  const small = kind === 'image' && shrink ? await shrinkImage(file) : null;
+  const name = file.name || kind;
   return {
     exif,
     meta: {
-      id: newId(), kind, name: file.name || kind, size: file.size, mime: file.type || '',
-      w: info.w || 0, h: info.h || 0, duration: info.duration || 0, hasThumb: !!info.blob
+      id: newId(), kind, name: small ? name.replace(/\.[a-z0-9]+$/i, '') + '.jpg' : name,
+      size: small ? small.blob.size : file.size, mime: small ? 'image/jpeg' : (file.type || ''),
+      w: small ? small.w : (info.w || 0), h: small ? small.h : (info.h || 0), duration: info.duration || 0, hasThumb: !!info.blob
     },
-    blob: file,
+    blob: small ? small.blob : file,
     thumb: info.blob
   };
 }

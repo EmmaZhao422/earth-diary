@@ -25,7 +25,7 @@ const BLANK_STYLE = {
 /* ====================================================================== */
 
 const DEFAULT_SETTINGS = {
-  style: CFG.map?.defaultStyle || 'liberty', journey: false, countries: true, motion: true, globe: true,
+  style: CFG.map?.defaultStyle || 'liberty', journey: false, countries: true, motion: true, globe: true, shrink: true,
   lastPin: { char: 'cat', color: null }, sidebarOpen: true
 };
 function loadSettings() {
@@ -617,7 +617,7 @@ async function createBatch(groups) {
     for (const g of groups) {
       const id = newId(), now = Date.now(), media = [];
       for (const item of g) {
-        const prepared = await prepareFile(item.file);
+        const prepared = await prepareFile(item.file, { shrink: settings.shrink });
         if (!prepared) continue;
         await db.putMedia({ id: prepared.meta.id, memoryId: id, name: prepared.meta.name, mime: prepared.meta.mime, blob: prepared.blob });
         if (prepared.thumb) await db.putThumb({ id: prepared.meta.id, blob: prepared.thumb });
@@ -869,7 +869,7 @@ async function addFiles(fileList) {
     if (file.size > 300 * 1024 * 1024) toast(t('editor.bigfile', { name: file.name, size: fmtBytes(file.size) }), { kind: 'warn', ms: 6000 });
     d.busy++; renderEditorMedia();
     try {
-      const prepared = await prepareFile(file);
+      const prepared = await prepareFile(file, { shrink: settings.shrink });
       if (draft !== d) return;
       if (prepared) {
         primeThumb(prepared.meta.id, prepared.thumb);
@@ -1345,6 +1345,7 @@ async function openSettings() {
         <h3>${esc(t('settings.data'))}</h3>
         <p class="set-note">${esc(t('settings.data.sub'))}</p>
         <p class="set-usage">💾 ${esc(t('settings.usage', { used: fmtBytes(usage.used) }))}</p>
+        ${switchRow('shrink', t('settings.shrink'), t('settings.shrink.sub'))}
         <div class="set-actions">
           <button class="btn btn-primary" data-act="export">⬇️ ${esc(t('settings.export'))}</button>
           <button class="btn btn-soft" data-act="import">⬆️ ${esc(t('settings.import'))}</button>

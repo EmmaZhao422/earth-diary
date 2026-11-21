@@ -27,8 +27,15 @@ def count(pg):
     return int(pg.inner_text('#count-badge'))
 
 
+BROWSER = os.environ.get('ED_BROWSER', 'chromium')
+
 with sync_playwright() as p:
-    b = p.chromium.launch(args=ARGS)
+    if BROWSER == 'firefox':
+        b = p.firefox.launch(firefox_user_prefs={'webgl.force-enabled': True})
+    elif BROWSER == 'webkit':
+        b = p.webkit.launch()
+    else:
+        b = p.chromium.launch(args=ARGS)
     ctx = b.new_context(viewport={'width': 1360, 'height': 820}, accept_downloads=True, locale='en-US')
     pg = ctx.new_page()
     pg.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
@@ -39,6 +46,18 @@ with sync_playwright() as p:
     pg.click('[data-a="start"]')
     pg.wait_for_timeout(600)
     assert count(pg) == 0
+
+    # --- large photos are shrunk to 2560 px, small ones are left alone ---
+    shrunk = pg.evaluate('''async () => {
+        const { prepareFile } = await import('./assets/js/media.js');
+        const c = document.createElement('canvas'); c.width = 4000; c.height = 3000;
+        const g = c.getContext('2d'); g.fillStyle = '#c96'; g.fillRect(0, 0, 4000, 3000);
+        const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+        const big = await prepareFile(new File([blob], 'big.png', { type: 'image/png' }), { shrink: true });
+        const keep = await prepareFile(new File([blob], 'big.png', { type: 'image/png' }), { shrink: false });
+        return [big.meta.w, big.meta.h, big.meta.mime, big.meta.name, keep.meta.w, keep.meta.mime];
+    }''')
+    assert shrunk == [2560, 1920, 'image/jpeg', 'big.jpg', 4000, 'image/png'], shrunk
 
     # --- create a memory ---
     pg.click('#fab-add')
@@ -168,11 +187,11 @@ with sync_playwright() as p:
         dates = pg.evaluate("[...document.querySelectorAll('.mem-card small')].map(e => e.textContent)")
         assert any('Sep 10, 2022' in d for d in dates) and any('Mar 2, 2021' in d for d in dates), dates
         # remove them again so the rest of the test sees the same data as before
-        for _ in range(2):
-            pg.locator('.mem-card', has_text='2022').first.click() if pg.locator('.mem-card', has_text='Sep 10, 2022').count() else pg.locator('.mem-card', has_text='Mar 2, 2021').first.click()
+        for i, label in enumerate(['Sep 10, 2022', 'Mar 2, 2021']):
+            pg.locator('.mem-card', has_text=label).first.click()
             pg.wait_for_selector('.detail')
             pg.click('[data-act="delete"]'); pg.click('.modal-confirm [data-a="yes"]')
-            pg.wait_for_timeout(400)
+            pg.wait_for_function(f"document.querySelector('#count-badge').textContent === '{before + 1 - i}' && !document.querySelector('.modal-backdrop')", timeout=10000)
         assert count(pg) == before, count(pg)
 
     # --- hover card + journey replay ---
