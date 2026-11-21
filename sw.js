@@ -1,6 +1,6 @@
 // Earth Diary service worker: lets the app shell open offline.
 // Your memories are in IndexedDB and are never touched by this file.
-const VERSION = 'earth-diary-v6';
+const VERSION = 'earth-diary-v7';
 const SHELL = [
   './', 'index.html', 'about.html', 'guide.html', 'ideas.html', 'privacy.html', 'terms.html', 'manifest.webmanifest',
   'assets/css/app.css', 'assets/css/pages.css',

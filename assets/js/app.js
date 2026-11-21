@@ -106,6 +106,7 @@ function initMap() {
     hash: 'map', attributionControl: false, maxPitch: 60, fadeDuration: 150
   });
   window.__edMap = map;
+  try { map.setPadding(viewPadding()); } catch {}
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   const locate = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false, showAccuracyCircle: false });

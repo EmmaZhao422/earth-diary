@@ -4,16 +4,22 @@
 
 **Live site → https://emmazhao422.github.io/earth-diary/**
 
-![Earth Diary](assets/img/og.jpg)
+| Your globe | Down to a single restaurant |
+| --- | --- |
+| ![Globe with pins and visited countries](docs/screenshots/globe.jpg) | ![Street-level map with a tappable restaurant](docs/screenshots/street-level.jpg) |
+| **A memory** | **On a phone** |
+| ![An opened memory with diary and photo](docs/screenshots/memory.jpg) | <img src="docs/screenshots/phone-editor.png" alt="Phone editor" width="260"> |
+
+Screenshots are from the live site on 2026-11-21 with the built-in sample pins.
 
 ## What it does
 
 - **Detailed world map** — vector tiles built from OpenStreetMap, shown as a 3D globe when zoomed out and street-level detail when zoomed in. Cafés, restaurants, shops, parks and peaks are tappable.
 - **Cute animated pins** — 14 original characters × 10 colors that bob, blink, wiggle and bounce when dropped.
 - **A memory inside every pin** — title, date, mood, diary text, tags, any number of photos and videos, with a full-screen viewer.
-- **Four ways to pin** — tap the map, tap a place name, search (places or coordinates), or right-click / long-press.
+- **Five ways to pin** — tap the map, tap a place name, search (places or coordinates), right-click / long-press, or start from a photo: photos that remember where they were taken place themselves, and a batch from several places becomes one pin per place and day.
 - **Timeline** — every memory by date, filter by word, `#tag` or year, plus “On this day”.
-- **Passport** — countries, cities, continents, photos, videos and journey length; visited countries light up; shareable passport card (PNG).
+- **Passport** — countries, cities, continents, photos, videos and journey length; visited countries light up; journey replay; shareable passport card (PNG).
 - **Private** — no account, no server. Everything is stored in the browser (IndexedDB) on the user's device.
 - **Backup** — export / import everything as one `.zip`.
 - **English + 中文**, mobile layout, installable (PWA), works offline for the app shell.
