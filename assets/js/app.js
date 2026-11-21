@@ -37,7 +37,7 @@ let settings = loadSettings();
 
 const state = {
   memories: [], byId: new Map(), selectedId: null,
-  filter: { q: '', year: null }, placing: false, tab: 'timeline', sheetOpen: false
+  filter: { q: '', year: null }, placing: false, tab: 'timeline', sheetOpen: false, limit: 120
 };
 let map = null;
 let popup = null;
@@ -608,6 +608,44 @@ async function deleteMemory(m) {
   toast(t('toast.deleted'));
 }
 
+// One memory per group of photos taken at the same place on the same day.
+async function createBatch(groups) {
+  toast(t('batch.working'), { ms: 2500 });
+  const made = [];
+  try {
+    for (const g of groups) {
+      const id = newId(), now = Date.now(), media = [];
+      for (const item of g) {
+        const prepared = await prepareFile(item.file);
+        if (!prepared) continue;
+        await db.putMedia({ id: prepared.meta.id, memoryId: id, name: prepared.meta.name, mime: prepared.meta.mime, blob: prepared.blob });
+        if (prepared.thumb) await db.putThumb({ id: prepared.meta.id, blob: prepared.thumb });
+        primeThumb(prepared.meta.id, prepared.thumb);
+        media.push(prepared.meta);
+      }
+      if (!media.length) continue;
+      const memory = {
+        id, lat: g.reduce((s, i) => s + i.lat, 0) / g.length, lng: g.reduce((s, i) => s + i.lng, 0) / g.length,
+        title: '', date: g.find((i) => i.date)?.date || todayISO(), text: '', mood: '', tags: [],
+        pin: { ...settings.lastPin }, place: null, media, createdAt: now, updatedAt: now
+      };
+      await db.putMemory(memory);
+      upsertMemory(memory);
+      made.push(memory);
+    }
+  } catch (err) {
+    console.error(err);
+    toast(t(err && err.name === 'QuotaExceededError' ? 'toast.quota' : 'toast.storage'), { kind: 'warn', ms: 6000 });
+  }
+  db.persist();
+  renderAll();
+  if (made.length) {
+    fitToMemories(made, { maxZoom: 12 });
+    toast(t('batch.done', { n: made.length }), { kind: 'ok', ms: 5000 });
+    backfillPlaces();
+  }
+}
+
 /* ---------- editor ---------- */
 function setPlacing(on) {
   state.placing = on;
@@ -644,11 +682,25 @@ async function startFromFiles(fileList) {
   const files = [...fileList].filter((f) => fileKind(f));
   if (!files.length) return;
   if (draft) { addFiles(files); return; }
-  let spot = null;
-  for (const f of files.slice(0, 8)) {
-    const ex = await readExif(f);
-    if (ex.lat != null) { spot = ex; break; }
+  const infos = [];
+  for (const f of files.slice(0, 400)) infos.push({ file: f, ...(await readExif(f)) });
+  const located = infos.filter((i) => i.lat != null);
+  // Photos from several places or days: offer one pin per place-and-day.
+  const groups = new Map();
+  for (const i of located) {
+    const key = `${i.lat.toFixed(2)}|${i.lng.toFixed(2)}|${i.date || ''}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
   }
+  if (groups.size > 1) {
+    const ok = await confirmDialog({
+      title: t('batch.title', { n: groups.size }),
+      body: t('batch.body', { photos: located.length, n: groups.size, skipped: files.length - located.length }),
+      okLabel: t('batch.ok')
+    });
+    if (ok) { await createBatch([...groups.values()]); return; }
+  }
+  const spot = located[0] || null;
   if (spot) {
     pendingFiles = files;
     await startDraft({ lng: spot.lng, lat: spot.lat }, null);
@@ -922,7 +974,7 @@ function setSidebar(open) {
   settings.sidebarOpen = open;
   saveSettings();
   document.body.classList.toggle('sidebar-open', open);
-  try { map?.easeTo({ padding: viewPadding(), duration: settings.motion ? 300 : 0 }); } catch {}
+  syncPadding();
 }
 
 function memoryCard(m) {
@@ -982,13 +1034,14 @@ function renderTimeline() {
   if (!list.length) html += `<p class="nomatch">${esc(t('timeline.nomatch'))}</p>`;
   let lastYear = null, n = 0;
   const every = feedEvery();
-  for (const m of list) {
+  for (const m of list.slice(0, state.limit)) {
     const y = (m.date || '').slice(0, 4);
     if (y !== lastYear) { html += `<h4 class="year-head">${esc(y || '—')}</h4>`; lastYear = y; }
     html += memoryCard(m);
     n++;
     if (adsAreLive() && n % every === 0 && n < list.length) html += '<div data-ad="feed"></div>';
   }
+  if (list.length > state.limit) html += `<button class="btn btn-soft btn-block" data-act="more">${esc(t('timeline.more', { n: list.length - state.limit }))}</button>`;
   if (!adsAreLive()) html += '<div data-ad="sidebar"></div>';
   box.innerHTML = html;
   mountSlots(box);
@@ -1426,24 +1479,36 @@ function maybeWelcome() {
 }
 
 // Fill in country / city for memories saved while offline (one request every 1.5 s).
+let backfilling = false;
 async function backfillPlaces() {
-  const todo = state.memories.filter((m) => !m.place?.countryCode && !m.place?.noCountry).slice(0, 15);
-  let changed = false;
+  if (backfilling) return;
+  backfilling = true;
+  const todo = state.memories.filter((m) => !m.place?.countryCode && !m.place?.noCountry).slice(0, 40);
+  let changed = 0;
   for (const m of todo) {
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1300));
     if (!state.byId.has(m.id) || (draft && draft.memory.id === m.id)) continue;
     try {
       const found = await geo.reversePlace(m.lat, m.lng);
       const prev = m.place || {};
-      m.place = found
-        ? { ...prev, name: prev.name || '', city: prev.city || found.city, state: found.state, country: found.country, countryCode: found.countryCode }
-        : { ...prev, noCountry: true };
-      if (found && !found.countryCode) m.place.noCountry = true;      // open ocean, Antarctica…
+      if (found) {
+        const close = geo.haversineKm(m, found) < 0.08;
+        m.place = {
+          ...prev, name: prev.name || (close ? found.name : '') || found.city || found.state || '',
+          category: prev.category || (close ? found.category : ''),
+          city: prev.city || found.city, state: found.state, country: found.country, countryCode: found.countryCode
+        };
+        if (!found.countryCode) m.place.noCountry = true;             // open ocean, Antarctica…
+      } else m.place = { ...prev, noCountry: true };
       await db.putMemory(m);
-      changed = true;
+      if (++changed % 5 === 0) renderAll();
     } catch { break; }
   }
-  if (changed) renderAll();
+  backfilling = false;
+  if (changed) {
+    renderAll();
+    if (state.selectedId && !draft && state.byId.has(state.selectedId)) renderDetail(state.byId.get(state.selectedId));
+  }
 }
 
 async function openShareCard() {
@@ -1520,11 +1585,12 @@ function bindUI() {
   document.addEventListener('click', (e) => { if (!e.target.closest('.search')) closeSearch(); });
 
   // sidebar
-  $('#filter-input').addEventListener('input', debounce((e) => { state.filter.q = e.target.value; renderTimeline(); renderMarkers(); }, 160));
+  $('#filter-input').addEventListener('input', debounce((e) => { state.filter.q = e.target.value; state.limit = 120; renderTimeline(); renderMarkers(); }, 160));
   $('#year-chips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-year]');
     if (!b) return;
     state.filter.year = b.dataset.year || null;
+    state.limit = 120;
     renderTimeline(); renderMarkers();
     const list = filteredMemories();
     if (state.filter.year && list.length) fitToMemories(list, { maxZoom: 6 });
@@ -1537,6 +1603,7 @@ function bindUI() {
     if (act === 'samples') addSamples();
     if (act === 'card') openShareCard();
     if (act === 'replay') startReplay();
+    if (act === 'more') { state.limit += 120; renderTimeline(); }
     const row = e.target.closest('[data-cc]');
     if (row) fitToMemories(state.memories.filter((m) => m.place?.countryCode === row.dataset.cc), { maxZoom: 9 });
     const house = e.target.closest('[data-house-action]');
@@ -1675,7 +1742,7 @@ async function boot() {
   bindUI();
   renderTimeline();
   try { initMap(); }
-  catch (err) { console.error(err); toast(t('toast.tiles'), { kind: 'warn', ms: 8000 }); }
+  catch (err) { console.error(err); map = null; toast(t('toast.webgl'), { kind: 'warn', ms: 12000 }); }
   renderAll();
   initMonetization();
   if (adsAreLive()) { const slot = $('#sidebar-ad'); slot.hidden = false; mountSlot(slot, 'sidebar'); }

@@ -158,6 +158,23 @@ with sync_playwright() as p:
         assert count(pg) == 9
         pg.keyboard.press('Escape')
 
+    # --- batch: photos from two places become two pins (Rome x2 photos, Lima x1) ---
+    if os.path.exists(f'{MEDIA}/batch_lima.jpg'):
+        before = count(pg)
+        pg.set_input_files('#photo-start', [f'{MEDIA}/batch_rome_1.jpg', f'{MEDIA}/batch_rome_2.jpg', f'{MEDIA}/batch_lima.jpg'])
+        pg.wait_for_selector('.modal-confirm')
+        pg.click('.modal-confirm [data-a="yes"]')
+        pg.wait_for_function(f"document.querySelector('#count-badge').textContent === '{before + 2}'", timeout=20000)
+        dates = pg.evaluate("[...document.querySelectorAll('.mem-card small')].map(e => e.textContent)")
+        assert any('Sep 10, 2022' in d for d in dates) and any('Mar 2, 2021' in d for d in dates), dates
+        # remove them again so the rest of the test sees the same data as before
+        for _ in range(2):
+            pg.locator('.mem-card', has_text='2022').first.click() if pg.locator('.mem-card', has_text='Sep 10, 2022').count() else pg.locator('.mem-card', has_text='Mar 2, 2021').first.click()
+            pg.wait_for_selector('.detail')
+            pg.click('[data-act="delete"]'); pg.click('.modal-confirm [data-a="yes"]')
+            pg.wait_for_timeout(400)
+        assert count(pg) == before, count(pg)
+
     # --- hover card + journey replay ---
     pg.locator('.pin').first.dispatch_event('mouseenter')
     pg.wait_for_selector('.pin-card b', state='attached')
