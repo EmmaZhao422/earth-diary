@@ -41,7 +41,8 @@ assets/data/countries.json   simplified country outlines (Natural Earth via worl
 assets/vendor/          MapLibre GL JS, fflate (with licenses)
 sw.js, manifest.webmanifest   offline + install
 docs/MONETIZATION.md    how the site makes money and what is left to switch on (中文)
-tests/e2e.py            end-to-end browser test
+tests/e2e.py            end-to-end browser test (also runs on every push via GitHub Actions)
+tools/set_domain.py     one command to move the site to a custom domain
 ```
 
 There is **no build step**. The repository root is the website; GitHub Pages serves the `main` branch as-is.
@@ -54,6 +55,12 @@ python3 -m http.server 8765
 ```
 
 Useful URL switches: `?ads=preview` outlines every ad slot, `?style=blank` runs without the tile server.
+
+## Custom domain
+
+```bash
+python3 tools/set_domain.py yourdomain.com   # rewrites canonical URLs, sitemap, 404 paths and writes CNAME
+```
 
 ## Tests
 

@@ -27,7 +27,7 @@
 **你要做的（按顺序）**：
 
 1. 买域名（例如 `earthdiary.xxx`，名字你定）。
-2. 把域名告诉我。我来做：仓库加 `CNAME`、把全站的 `emmazhao422.github.io/earth-diary` 换成新域名（canonical、sitemap、robots、分享图地址）。你在域名注册商那里加一条 DNS 记录（我会给你准确的值）。
+2. 把域名告诉我，或者自己在仓库里跑一条命令：`python3 tools/set_domain.py 你的域名`。它会写好 `CNAME`，并把全站的 `emmazhao422.github.io/earth-diary` 换成新域名（canonical、sitemap、robots、分享图地址、404 页路径）。然后你在域名注册商那里加一条 DNS 记录（`www` 的 CNAME 指向 `emmazhao422.github.io`；⚠ 裸域名要按 GitHub 文档加 A 记录，以 GitHub Pages 设置页的提示为准）。
 3. 用你的 Google 账号注册 AdSense，添加站点，等审核。⚠ 审核时长和是否通过由 Google 决定；纯工具类站点常见的拒绝理由是“内容不足”，所以站里已经放了 About / Guide / Privacy / Terms 四个内容页，上线后再补几篇真实的使用文章会更稳。
 4. 审核通过后，在 AdSense 后台建 4 个广告单元，把 ID 填进 `config.js`：
 
