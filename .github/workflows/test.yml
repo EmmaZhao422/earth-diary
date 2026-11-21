@@ -23,10 +23,11 @@ jobs:
       - name: Serve the site and run the end-to-end test
         env:
           ED_BROWSER: ${{ matrix.browser }}
+          ED_HEADED: ${{ matrix.browser == 'firefox' && '1' || '0' }}
         run: |
           python -m http.server 8765 > /dev/null 2>&1 &
           sleep 2
-          python tests/e2e.py tests/media /tmp/shots
+          if [ "$ED_HEADED" = "1" ]; then xvfb-run -a python tests/e2e.py tests/media /tmp/shots; else python tests/e2e.py tests/media /tmp/shots; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

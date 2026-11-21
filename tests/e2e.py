@@ -34,8 +34,9 @@ def count(pg):
 BROWSER = os.environ.get('ED_BROWSER', 'chromium')
 
 with sync_playwright() as p:
+    headed = os.environ.get('ED_HEADED') == '1'      # under xvfb on CI, so Firefox gets a WebGL context
     if BROWSER == 'firefox':
-        b = p.firefox.launch(firefox_user_prefs={'webgl.force-enabled': True})
+        b = p.firefox.launch(headless=not headed, firefox_user_prefs={'webgl.force-enabled': True, 'webgl.disabled': False})
     elif BROWSER == 'webkit':
         b = p.webkit.launch()
     else:

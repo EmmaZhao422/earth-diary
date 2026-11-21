@@ -1,5 +1,7 @@
 # Earth Diary 🌍📍
 
+[![test](https://github.com/EmmaZhao422/earth-diary/actions/workflows/test.yml/badge.svg)](https://github.com/EmmaZhao422/earth-diary/actions/workflows/test.yml)
+
 **Pin your life on the planet.** A world map where every pin holds a diary entry, photos and videos — down to a single restaurant.
 
 **Live site → https://emmazhao422.github.io/earth-diary/**
@@ -70,7 +72,7 @@ python3 -m http.server 8765 &
 python3 tests/e2e.py            # uses tests/media, screenshots go to /tmp/shots
 ```
 
-The test creates, edits and deletes memories, uploads photos and a video, reloads to check persistence, exports and re-imports a backup, and checks the passport, share card, language switch, ad preview and mobile layout.
+It runs on every push in Chromium, WebKit and Firefox (GitHub Actions). The test creates, edits and deletes memories, uploads photos and a video, reloads to check persistence, exports and re-imports a backup, and checks the passport, share card, language switch, ad preview and mobile layout.
 
 ## Data sources and credits
 
