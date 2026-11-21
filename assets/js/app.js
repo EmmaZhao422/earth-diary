@@ -86,7 +86,11 @@ function styleFor(key) {
 }
 
 function viewPadding() {
-  if (!isDesktop()) return { top: 76, bottom: 96, left: 24, right: 24 };
+  if (!isDesktop()) {
+    // on phones the editor is a bottom sheet, so keep the pin in the strip of map above it
+    const editing = drawer()?.dataset.kind === 'editor';
+    return { top: 76, bottom: editing ? Math.round(window.innerHeight * 0.62) : 96, left: 24, right: 24 };
+  }
   return {
     top: 84, bottom: 48,
     left: settings.sidebarOpen ? 388 : 48,
@@ -594,7 +598,10 @@ function setPlacing(on) {
   if (on) { closePopup(); if (!isDesktop()) setSheet(false); }
 }
 
+let lastDraftAt = 0;
 async function startDraft(lngLat, poi) {
+  if (Date.now() - lastDraftAt < 900) return;           // long-press can fire both touch and contextmenu
+  lastDraftAt = Date.now();
   if (replay) stopReplay();
   if (draft) { if (!(await confirmDiscard())) return; discardDraft(); }
   const files = pendingFiles;

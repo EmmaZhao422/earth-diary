@@ -119,6 +119,7 @@ h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 600; margin: 0; lin
 .btn-soft:hover { background: #ffecd2; }
 .btn-ghost { border-color: transparent; box-shadow: none; background: transparent; color: var(--ink-soft); }
 .btn-ghost:hover { background: rgba(74, 59, 92, .08); }
+.btn-ghost.btn-sm { box-shadow: none; }
 .btn-danger { background: #ff5c6c; color: #fff; }
 .btn-danger-soft { color: #c73545; }
 .btn-sm { min-height: 34px; padding: 0 12px; font-size: 14px; box-shadow: 0 3px 0 var(--ink); }
@@ -574,6 +575,9 @@ h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 600; margin: 0; lin
   .toast-root { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
 
   .drawer { inset: 0; width: auto; max-width: none; border-radius: 0; border: 0; z-index: 40; transform: translateY(30px); }
+  .drawer[data-kind="editor"] { top: 36dvh; border-top: 2.5px solid var(--ink); border-radius: 26px 26px 0 0; box-shadow: 0 -10px 30px rgba(74, 59, 92, .2); }
+  .drawer[data-kind="editor"] .drawer-head { padding-top: 10px; padding-bottom: 8px; }
+  .drawer-open .topbar { z-index: 39; }
   .char-grid { gap: 5px; }
   .modal { border-radius: 24px; }
   .lb-nav { display: none; }
