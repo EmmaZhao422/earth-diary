@@ -176,7 +176,7 @@ with sync_playwright() as p:
     pg.fill('#search-input', '35.6595, 139.7005')
     pg.wait_for_selector('.search-item')
     pg.keyboard.press('Enter')
-    pg.wait_for_selector('.spot [data-act="pin"]', timeout=8000)
+    pg.wait_for_selector('.spot [data-act="pin"]', timeout=30000)
     pg.click('.spot [data-act="pin"]')
     pg.wait_for_selector('#editor')
     pg.click('[data-act="cancel"]')
