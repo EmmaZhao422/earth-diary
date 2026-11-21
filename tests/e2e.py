@@ -47,6 +47,14 @@ with sync_playwright() as p:
 
     pg.goto(BASE + '?style=blank')
     pg.wait_for_selector('.modal-welcome')
+    has_gl = pg.evaluate("() => { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); }")
+    has_map = pg.evaluate("() => !!window.__edMap")
+    print(f'browser={BROWSER} webgl={has_gl} map={has_map}')
+    if not has_gl and BROWSER != 'chromium':
+        print('SKIPPED: this headless browser build has no WebGL, which the map needs.')
+        b.close()
+        sys.exit(0)
+    assert has_map, 'WebGL is available but the map did not start'
     pg.click('[data-a="start"]')
     pg.wait_for_timeout(600)
     assert count(pg) == 0
