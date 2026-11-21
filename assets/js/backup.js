@@ -74,9 +74,23 @@ export async function importBackup(file, existingById) {
   }
   if (!manifest || manifest.format !== FORMAT || !Array.isArray(manifest.memories)) throw new Error('not a backup');
 
+  // A backup file can come from anywhere, so only accept well-formed records.
+  const okId = (v) => typeof v === 'string' && /^[\w-]{1,80}$/.test(v);
+  const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
   const changed = [];
   for (const raw of manifest.memories) {
-    if (!raw || !raw.id || typeof raw.lat !== 'number' || typeof raw.lng !== 'number') continue;
+    if (!raw || !okId(raw.id) || typeof raw.lat !== 'number' || typeof raw.lng !== 'number') continue;
+    if (!isFinite(raw.lat) || !isFinite(raw.lng) || Math.abs(raw.lat) > 90) continue;
+    raw.title = text(raw.title, 200); raw.text = text(raw.text, 200000); raw.mood = text(raw.mood, 8);
+    raw.date = /^\d{4}-\d{2}-\d{2}$/.test(raw.date || '') ? raw.date : '';
+    raw.tags = Array.isArray(raw.tags) ? raw.tags.filter((x) => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 12) : [];
+    raw.pin = { char: text(raw.pin?.char, 20), color: text(raw.pin?.color, 9) || null };
+    if (raw.place && typeof raw.place === 'object') {
+      const p = raw.place;
+      raw.place = { name: text(p.name, 200), category: text(p.category, 60), city: text(p.city, 120), state: text(p.state, 120), country: text(p.country, 120), countryCode: /^[A-Za-z]{2}$/.test(p.countryCode || '') ? p.countryCode.toUpperCase() : '' };
+    } else raw.place = null;
+    raw.media = (Array.isArray(raw.media) ? raw.media : []).filter((it) => it && okId(it.id) && ['image', 'video'].includes(it.kind) && typeof it.file === 'string');
+    raw.media.forEach((it) => { it.name = text(it.name, 200); it.mime = /^[\w.+-]+\/[\w.+-]+$/.test(it.mime || '') ? it.mime : ''; });
     const prev = existingById.get(raw.id);
     if (prev && (prev.updatedAt || 0) >= (raw.updatedAt || 0)) continue;   // keep the newer local copy
     const media = [];

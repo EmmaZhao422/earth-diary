@@ -165,7 +165,8 @@ export const CHARACTER_IDS = Object.keys(CHARACTERS);
 
 export function pinSVG(pin = {}, opts = {}) {
   const ch = CHARACTERS[pin.char] || CHARACTERS.cat;
-  const color = ch.tint && pin.color ? pin.color : ch.color;
+  const safe = typeof pin.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(pin.color);     // colors can arrive from an imported backup
+  const color = ch.tint && safe ? pin.color : ch.color;
   const id = `pc${++uid}`;
   const outline = pin.char === 'heart' ? HEART : BODY;
   const sticker = opts.sticker === false ? '' :
